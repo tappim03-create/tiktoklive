@@ -48,7 +48,7 @@ resultLabel.Text = ""
 resultLabel.Parent = frame
 
 -- URL ของ GitHub Pages (แก้เป็นของคุณ)
-local keyURL = "https://<USERNAME>.github.io/<REPO>/key.json"
+local keyURL = "https://raw.githubusercontent.com/tappim03-create/script/refs/heads/main/key.json"
 
 -- ดึง key จากเว็บ
 local currentKey
