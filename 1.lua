@@ -168,7 +168,7 @@ local deltaBox = makeBox(UDim2.new(0,80,0,40), Vector2.new(0,0), "1")
 local minusBtn = makeButton("-", UDim2.new(0,50,0,40))
 local resetBtn = makeButton(TEXT.reset, UDim2.new(0,80,0,40))
 local maxBox = makeBox(UDim2.new(0,80,0,40), Vector2.new(0,0), tostring(displayMaxWin))
-maxBox.PlaceholderText = "Max"
+maxBox.PlaceholderText = "Win"
 
 for _, obj in pairs({plusBtn, deltaBox, minusBtn, resetBtn, maxBox}) do
 	obj.Parent = bottomRightFrame
@@ -286,7 +286,7 @@ maxBox.FocusLost:Connect(function()
 		displayMaxWin = 10
 		maxBox.Text = tostring(displayMaxWin)
 	end
-	showChange("Max win set (display only)")
+	showChange("win set")
 	updateWin()
 end)
 
