@@ -56,9 +56,10 @@ local TEXT = {
 }
 
 local win = 0
-local maxWin = 10
+local maxWinUncapped = true -- win จริงไม่จำกัด
+local displayMaxWin = 10 -- ตัวเลขที่จะโชว์ใน GUI
+local privacyMode = false
 
--- Create Win Label
 local function createWinLabel(text, pos)
 	local frame = Instance.new("Frame")
 	frame.AnchorPoint = Vector2.new(0.5, 0)
@@ -76,7 +77,7 @@ local function createWinLabel(text, pos)
 	label.TextColor3 = Color3.fromRGB(255,255,255)
 	label.Font = Enum.Font.GothamBold
 	label.TextScaled = false
-	label.TextSize = 48 -- bigger
+	label.TextSize = 48
 	label.TextWrapped = true
 	label.Size = UDim2.new(1,-20,1,-10)
 	label.Position = UDim2.new(0.5,0,0.5,0)
@@ -128,7 +129,7 @@ local function createDynamicLabel(text, pos)
 	return frame, label
 end
 
-local winFrame, winLabel = createWinLabel(TEXT.win..win.."/"..maxWin, UDim2.new(0.5,0,0.05,0))
+local winFrame, winLabel = createWinLabel(TEXT.win..win.."/"..displayMaxWin, UDim2.new(0.5,0,0.05,0))
 winFrame.Visible = false
 local alertFrame, lastLabel = createDynamicLabel("", UDim2.new(0.5,0,0.15,0))
 alertFrame.Visible = false
@@ -146,7 +147,7 @@ local function showChange(text)
 	end)
 end
 
--- Bottom buttons (hidden until part selected)
+-- Bottom right buttons
 local bottomRightFrame = Instance.new("Frame")
 bottomRightFrame.Size = UDim2.new(0, 400, 0, 50)
 bottomRightFrame.Position = UDim2.new(1, -10, 1, -10)
@@ -166,25 +167,25 @@ local plusBtn = makeButton("+", UDim2.new(0,50,0,40))
 local deltaBox = makeBox(UDim2.new(0,80,0,40), Vector2.new(0,0), "1")
 local minusBtn = makeButton("-", UDim2.new(0,50,0,40))
 local resetBtn = makeButton(TEXT.reset, UDim2.new(0,80,0,40))
-local maxBox = makeBox(UDim2.new(0,80,0,40), Vector2.new(0,0), tostring(maxWin))
+local maxBox = makeBox(UDim2.new(0,80,0,40), Vector2.new(0,0), tostring(displayMaxWin))
 maxBox.PlaceholderText = "Max"
 
 for _, obj in pairs({plusBtn, deltaBox, minusBtn, resetBtn, maxBox}) do
 	obj.Parent = bottomRightFrame
 end
 
--- Big Select Win Part button
+-- Select Win Part button
 local selectBtn = makeButton(TEXT.selectPart, UDim2.new(0,250,0,60))
 selectBtn.Position = UDim2.new(0.5,0,0.5,0)
 
--- Back "<-" button
+-- Back button
 local backBtn = makeButton("<-", UDim2.new(0,60,0,40))
 backBtn.Position = UDim2.new(0,10,0,50)
 backBtn.AnchorPoint = Vector2.new(0,0)
 backBtn.Visible = false
 backBtn.Parent = gui
 
--- Selection system
+-- Confirm frame
 local confirmFrame = Instance.new("Frame")
 confirmFrame.Size = UDim2.new(0, 260, 0, 120)
 confirmFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -243,34 +244,70 @@ local function getDelta()
 	return d or 1
 end
 
+-- Update win label (display only)
 local function updateWin()
-	winLabel.Text = TEXT.win..win.."/"..maxWin
-	winLabel.TextSize = 48
+	if privacyMode then
+		winLabel.Text = TEXT.win
+	else
+		winLabel.Text = TEXT.win..win.."/"..displayMaxWin
+	end
 end
 
--- Back button resets selection and disables old touch
+-- Button logic
+plusBtn.MouseButton1Click:Connect(function()
+	local delta = getDelta()
+	win = win + delta
+	updateWin()
+	showChange("+"..delta)
+end)
+
+minusBtn.MouseButton1Click:Connect(function()
+	local delta = getDelta()
+	win = math.max(win - delta, 0)
+	updateWin()
+	showChange("-"..delta)
+end)
+
+resetBtn.MouseButton1Click:Connect(function()
+	win = 0
+	updateWin()
+	showChange(TEXT.winReset)
+end)
+
+-- Max box just display, do not cap win
+maxBox.FocusLost:Connect(function()
+	local txt = maxBox.Text
+	txt = string.gsub(txt, "%s+", "")
+	local val = tonumber(txt)
+	if val and val > 0 then
+		displayMaxWin = math.floor(val)
+		maxBox.Text = tostring(displayMaxWin)
+	else
+		displayMaxWin = 10
+		maxBox.Text = tostring(displayMaxWin)
+	end
+	showChange("Max win set (display only)")
+	updateWin()
+end)
+
+-- Back button
 backBtn.MouseButton1Click:Connect(function()
 	selectedPart = nil
 	selecting = false
-
-	-- Disconnect old touch listener
 	if touchConnection then
 		touchConnection:Disconnect()
 		touchConnection = nil
 	end
-
 	clearHighlight()
 	confirmFrame.Visible = false
 	bottomRightFrame.Visible = false
 	winFrame.Visible = false
 	selectBtn.Visible = true
 	backBtn.Visible = false
-
 	if mouseConn then
 		mouseConn:Disconnect()
 		mouseConn = nil
 	end
-
 	showChange("Select Win Part again")
 end)
 
@@ -280,11 +317,9 @@ selectBtn.MouseButton1Click:Connect(function()
 	selecting = true
 	selectBtn.Text = TEXT.selecting
 	showChange(TEXT.selecting)
-	
 	if mouseConn then
 		mouseConn:Disconnect()
 	end
-
 	mouseConn = mouse.Button1Down:Connect(function()
 		local target = mouse.Target
 		if target and target:IsA("BasePart") then
@@ -311,7 +346,7 @@ local function setupTouchListener()
 	touchConnection = selectedPart.Touched:Connect(function(hit)
 		local character = player.Character
 		if character and hit:IsDescendantOf(character) then
-			win = math.min(win + 1, maxWin)
+			win = win + 1
 			updateWin()
 			showChange(TEXT.touched)
 			character:BreakJoints()
