@@ -1,11 +1,18 @@
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
+local TextService = game:GetService("TextService")
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "WinGui"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
+
+local function addRadius(frame, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius)
+	corner.Parent = frame
+end
 
 local function makeButton(text, size, anchor)
 	local b = Instance.new("TextButton")
@@ -19,21 +26,6 @@ local function makeButton(text, size, anchor)
 	b.Text = text
 	b.Parent = gui
 	return b
-end
-
-local function makeLabel(text, size, pos, anchor)
-	local l = Instance.new("TextLabel")
-	l.Size = size
-	l.Position = pos
-	l.AnchorPoint = anchor or Vector2.new(0.5, 0)
-	l.BackgroundTransparency = 0.3
-	l.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	l.TextColor3 = Color3.fromRGB(255, 255, 255)
-	l.Font = Enum.Font.GothamBold
-	l.TextScaled = true
-	l.Text = text
-	l.Parent = gui
-	return l
 end
 
 local function makeBox(size, anchor, default)
@@ -50,26 +42,118 @@ local function makeBox(size, anchor, default)
 	return t
 end
 
-local win = 0
-local winLabel = makeLabel("Win: 0", UDim2.new(0.2, 0, 0.08, 0), UDim2.new(0.5, 0, 0.02, 0))
-local lastLabel = makeLabel("", UDim2.new(0.15, 0, 0.05, 0), UDim2.new(0.5, 0, 0.12, 0))
-lastLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
-lastLabel.BackgroundTransparency = 1
+local TEXT = {
+	win = "Win: ",
+	reset = "Reset",
+	selectPart = "Select Win Part",
+	confirm = "Confirm",
+	cancel = "Cancel",
+	notPart = "Not a part.",
+	selecting = "Selecting Win Part",
+	touched = "+1",
+	winReset = "Win Reset!",
+	part = "Part: "
+}
 
-local function showChange(amount)
-	lastLabel.Text = amount
-	lastLabel.Visible = true
-	task.delay(1.2, function()
-		lastLabel.Visible = false
+local win = 0
+local maxWin = 10
+
+-- Create Win Label
+local function createWinLabel(text, pos)
+	local frame = Instance.new("Frame")
+	frame.AnchorPoint = Vector2.new(0.5, 0)
+	frame.Position = pos
+	frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+	frame.BackgroundTransparency = 0.4
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 1
+	frame.Parent = gui
+	addRadius(frame, 8)
+
+	local label = Instance.new("TextLabel")
+	label.Text = text
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(255,255,255)
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = false
+	label.TextSize = 48 -- bigger
+	label.TextWrapped = true
+	label.Size = UDim2.new(1,-20,1,-10)
+	label.Position = UDim2.new(0.5,0,0.5,0)
+	label.AnchorPoint = Vector2.new(0.5,0.5)
+	label.Parent = frame
+
+	local function resize()
+		local textSize = TextService:GetTextSize(label.Text, 48, label.Font, Vector2.new(1000,1000))
+		local width = math.max(textSize.X + 30, 200)
+		local height = math.max(textSize.Y + 20, 70)
+		frame.Size = UDim2.new(0, width, 0, height)
+	end
+	resize()
+	label:GetPropertyChangedSignal("Text"):Connect(resize)
+	return frame, label
+end
+
+local function createDynamicLabel(text, pos)
+	local frame = Instance.new("Frame")
+	frame.AnchorPoint = Vector2.new(0.5, 0)
+	frame.Position = pos
+	frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+	frame.BackgroundTransparency = 0.4
+	frame.BorderSizePixel = 0
+	frame.ZIndex = 1
+	frame.Parent = gui
+	addRadius(frame, 8)
+
+	local label = Instance.new("TextLabel")
+	label.Text = text
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(255,255,255)
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.TextWrapped = true
+	label.Size = UDim2.new(1,-20,1,-10)
+	label.Position = UDim2.new(0.5,0,0.5,0)
+	label.AnchorPoint = Vector2.new(0.5,0.5)
+	label.Parent = frame
+
+	local function resize()
+		local textSize = TextService:GetTextSize(label.Text, 24, label.Font, Vector2.new(1000,1000))
+		local width = math.max(textSize.X + 20, 120)
+		local height = math.max(textSize.Y + 10, 40)
+		frame.Size = UDim2.new(0, width, 0, height)
+	end
+	resize()
+	label:GetPropertyChangedSignal("Text"):Connect(resize)
+	return frame, label
+end
+
+local winFrame, winLabel = createWinLabel(TEXT.win..win.."/"..maxWin, UDim2.new(0.5,0,0.05,0))
+winFrame.Visible = false
+local alertFrame, lastLabel = createDynamicLabel("", UDim2.new(0.5,0,0.15,0))
+alertFrame.Visible = false
+
+local function showChange(text)
+	local alertClone = alertFrame:Clone()
+	alertClone.Parent = gui
+	alertClone.Visible = true
+	local labelClone = alertClone:FindFirstChildOfClass("TextLabel")
+	labelClone.Text = text
+	labelClone.Visible = true
+	task.spawn(function()
+		task.wait(1.2)
+		alertClone:Destroy()
 	end)
 end
 
+-- Bottom buttons (hidden until part selected)
 local bottomRightFrame = Instance.new("Frame")
-bottomRightFrame.Size = UDim2.new(0, 300, 0, 50)
+bottomRightFrame.Size = UDim2.new(0, 400, 0, 50)
 bottomRightFrame.Position = UDim2.new(1, -10, 1, -10)
 bottomRightFrame.AnchorPoint = Vector2.new(1,1)
 bottomRightFrame.BackgroundTransparency = 1
 bottomRightFrame.Parent = gui
+bottomRightFrame.Visible = false
 
 local layout = Instance.new("UIListLayout")
 layout.FillDirection = Enum.FillDirection.Horizontal
@@ -81,63 +165,55 @@ layout.Parent = bottomRightFrame
 local plusBtn = makeButton("+", UDim2.new(0,50,0,40))
 local deltaBox = makeBox(UDim2.new(0,80,0,40), Vector2.new(0,0), "1")
 local minusBtn = makeButton("-", UDim2.new(0,50,0,40))
-local resetBtn = makeButton("Reset", UDim2.new(0,80,0,40))
+local resetBtn = makeButton(TEXT.reset, UDim2.new(0,80,0,40))
+local maxBox = makeBox(UDim2.new(0,80,0,40), Vector2.new(0,0), tostring(maxWin))
+maxBox.PlaceholderText = "Max"
 
-plusBtn.Parent = bottomRightFrame
-deltaBox.Parent = bottomRightFrame
-minusBtn.Parent = bottomRightFrame
-resetBtn.Parent = bottomRightFrame
-
-local function updateWin()
-	winLabel.Text = "Win: " .. tostring(win)
+for _, obj in pairs({plusBtn, deltaBox, minusBtn, resetBtn, maxBox}) do
+	obj.Parent = bottomRightFrame
 end
 
-local function getDelta()
-	local d = tonumber(deltaBox.Text)
-	return d or 1
-end
-
-plusBtn.MouseButton1Click:Connect(function()
-	local delta = getDelta()
-	win += delta
-	updateWin()
-	showChange("+" .. delta)
-end)
-
-minusBtn.MouseButton1Click:Connect(function()
-	local delta = getDelta()
-	win -= delta
-	updateWin()
-	showChange("-" .. delta)
-end)
-
-resetBtn.MouseButton1Click:Connect(function()
-	win = 0
-	updateWin()
-	showChange("Win Reset!")
-end)
-
-local selectBtn = makeButton("Select Win Part", UDim2.new(0, 150, 0, 40), Vector2.new(0.5,0.5))
+-- Big Select Win Part button
+local selectBtn = makeButton(TEXT.selectPart, UDim2.new(0,250,0,60))
 selectBtn.Position = UDim2.new(0.5,0,0.5,0)
 
+-- Back "<-" button
+local backBtn = makeButton("<-", UDim2.new(0,60,0,40))
+backBtn.Position = UDim2.new(0,10,0,50)
+backBtn.AnchorPoint = Vector2.new(0,0)
+backBtn.Visible = false
+backBtn.Parent = gui
+
+-- Selection system
 local confirmFrame = Instance.new("Frame")
 confirmFrame.Size = UDim2.new(0, 260, 0, 120)
-confirmFrame.Position = UDim2.new(0.5,0,0.4,0)
-confirmFrame.AnchorPoint = Vector2.new(0.5,0)
-confirmFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+confirmFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+confirmFrame.Position = UDim2.new(0.5,0,0.5,0)
+confirmFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 confirmFrame.BackgroundTransparency = 0.2
 confirmFrame.Visible = false
 confirmFrame.Parent = gui
+addRadius(confirmFrame, 12)
 
-local confirmLabel = makeLabel("Part: None", UDim2.new(1, 0, 0.5, 0), UDim2.new(0.5, 0, 0, 0), Vector2.new(0.5,0))
+local confirmLabel = Instance.new("TextLabel")
+confirmLabel.BackgroundTransparency = 1
+confirmLabel.TextColor3 = Color3.fromRGB(255,255,255)
+confirmLabel.Font = Enum.Font.GothamBold
+confirmLabel.TextScaled = true
+confirmLabel.Text = TEXT.part.."None"
+confirmLabel.Size = UDim2.new(1,-20,0.5,0)
+confirmLabel.Position = UDim2.new(0.5,0,0.25,0)
+confirmLabel.AnchorPoint = Vector2.new(0.5,0.5)
 confirmLabel.Parent = confirmFrame
 
-local confirmBtn = makeButton("✅ Confirm", UDim2.new(0.5, -10,0,40), Vector2.new(0,0))
-confirmBtn.Position = UDim2.new(0,10,0.5,30)
+local confirmBtn = makeButton(TEXT.confirm, UDim2.new(0.45,0,0,40))
+confirmBtn.AnchorPoint = Vector2.new(0,0)
+confirmBtn.Position = UDim2.new(0.025,0,0.7,0)
 confirmBtn.Parent = confirmFrame
 
-local cancelBtn = makeButton("❌ Cancel", UDim2.new(0.5,-10,0,40), Vector2.new(0,0))
-cancelBtn.Position = UDim2.new(0.5,0,0.5,30)
+local cancelBtn = makeButton(TEXT.cancel, UDim2.new(0.45,0,0,40))
+cancelBtn.AnchorPoint = Vector2.new(0,0)
+cancelBtn.Position = UDim2.new(0.525,0,0.7,0)
 cancelBtn.Parent = confirmFrame
 
 local selectionBox = Instance.new("SelectionBox")
@@ -160,25 +236,68 @@ end
 local selectedPart = nil
 local selecting = false
 local touchConnection = nil
+local mouseConn = nil
 
+local function getDelta()
+	local d = tonumber(deltaBox.Text)
+	return d or 1
+end
+
+local function updateWin()
+	winLabel.Text = TEXT.win..win.."/"..maxWin
+	winLabel.TextSize = 48
+end
+
+-- Back button resets selection and disables old touch
+backBtn.MouseButton1Click:Connect(function()
+	selectedPart = nil
+	selecting = false
+
+	-- Disconnect old touch listener
+	if touchConnection then
+		touchConnection:Disconnect()
+		touchConnection = nil
+	end
+
+	clearHighlight()
+	confirmFrame.Visible = false
+	bottomRightFrame.Visible = false
+	winFrame.Visible = false
+	selectBtn.Visible = true
+	backBtn.Visible = false
+
+	if mouseConn then
+		mouseConn:Disconnect()
+		mouseConn = nil
+	end
+
+	showChange("Select Win Part again")
+end)
+
+-- Select win part
 selectBtn.MouseButton1Click:Connect(function()
 	if selecting then return end
 	selecting = true
-	selectBtn.Text = "Click a Part..."
-	showChange("Selecting Win Part")
-	local conn
-	conn = mouse.Button1Down:Connect(function()
+	selectBtn.Text = TEXT.selecting
+	showChange(TEXT.selecting)
+	
+	if mouseConn then
+		mouseConn:Disconnect()
+	end
+
+	mouseConn = mouse.Button1Down:Connect(function()
 		local target = mouse.Target
 		if target and target:IsA("BasePart") then
 			selectedPart = target
-			selectBtn.Text = "Select Win Part"
+			selectBtn.Text = TEXT.selectPart
 			selecting = false
-			conn:Disconnect()
+			mouseConn:Disconnect()
+			mouseConn = nil
 			highlightPart(selectedPart)
-			confirmLabel.Text = "Part: " .. target.Name
+			confirmLabel.Text = TEXT.part..target.Name
 			confirmFrame.Visible = true
 		else
-			showChange("Not a part.")
+			showChange(TEXT.notPart)
 		end
 	end)
 end)
@@ -192,9 +311,9 @@ local function setupTouchListener()
 	touchConnection = selectedPart.Touched:Connect(function(hit)
 		local character = player.Character
 		if character and hit:IsDescendantOf(character) then
-			win += 1
+			win = math.min(win + 1, maxWin)
 			updateWin()
-			showChange("+1")
+			showChange(TEXT.touched)
 			character:BreakJoints()
 			if touchConnection then
 				touchConnection:Disconnect()
@@ -207,17 +326,23 @@ end
 confirmBtn.MouseButton1Click:Connect(function()
 	if not selectedPart then return end
 	confirmFrame.Visible = false
-	showChange("✅ " .. selectedPart.Name .. " selected!")
+	showChange(selectedPart.Name.." selected!")
 	selectBtn.Visible = false
 	clearHighlight()
 	setupTouchListener()
+	bottomRightFrame.Visible = true
+	winFrame.Visible = true
+	backBtn.Visible = true
+	updateWin()
 end)
 
 cancelBtn.MouseButton1Click:Connect(function()
 	selectedPart = nil
+	selecting = false
 	confirmFrame.Visible = false
-	showChange("❌ Cancelled")
+	showChange("Cancelled")
 	selectBtn.Visible = true
+	backBtn.Visible = false
 	clearHighlight()
 end)
 
@@ -225,3 +350,6 @@ player.CharacterAdded:Connect(function()
 	task.wait(0.1)
 	setupTouchListener()
 end)
+
+local buttons = {plusBtn, minusBtn, resetBtn, selectBtn, confirmBtn, cancelBtn, maxBox, backBtn}
+for _, btn in pairs(buttons) do addRadius(btn, 8) end
