@@ -67,7 +67,7 @@ local plusBtn = makeButton("+", UDim2.new(0, 50, 0, 40), UDim2.new(1, -100, 1, -
 local minusBtn = makeButton("-", UDim2.new(0, 50, 0, 40), UDim2.new(1, -50, 1, -50))
 
 -- Centered Select Finish Button
-local selectBtn = makeButton("🎯 Select Finish", UDim2.new(0, 150, 0, 40), UDim2.new(0.5, -75, 0.5, -20))
+local selectBtn = makeButton("🎯 Select Finish part", UDim2.new(0, 150, 0, 40), UDim2.new(0.5, -75, 0.5, -20))
 
 local confirmFrame = Instance.new("Frame")
 confirmFrame.Size = UDim2.new(0, 260, 0, 120)
